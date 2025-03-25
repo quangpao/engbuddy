@@ -5,6 +5,7 @@ A **Slack bot** that helps team members improve their **English skills** by send
 ---
 
 ## 🚀 Features
+
 - **Random English Questions**: Sends questions at scheduled intervals.
 - **Interactive Slack Integration**: Users can respond via messages or buttons.
 - **Admin Panel**: Manage questions and track user progress.
@@ -14,6 +15,7 @@ A **Slack bot** that helps team members improve their **English skills** by send
 ---
 
 ## 📂 Project Structure
+
 ```
 📦 english-slack-bot
 ├── 📂 src
@@ -41,18 +43,22 @@ A **Slack bot** that helps team members improve their **English skills** by send
 ## 🛠️ Installation & Setup
 
 ### 1️⃣ Clone the Repository
+
 ```sh
 git clone https://github.com/your-repo/english-slack-bot.git
 cd english-slack-bot
 ```
 
 ### 2️⃣ Install Dependencies
+
 ```sh
 bun install
 ```
 
 ### 3️⃣ Set Up Environment Variables
+
 Create a **.env** file and add your Slack credentials:
+
 ```
 SLACK_BOT_TOKEN=your-slack-bot-token
 SLACK_SIGNING_SECRET=your-slack-signing-secret
@@ -60,6 +66,7 @@ DATABASE_URL=your-database-url
 ```
 
 ### 4️⃣ Run the Development Server
+
 ```sh
 bun run dev
 ```
@@ -69,21 +76,24 @@ bun run dev
 ## 🎯 API Endpoints
 
 ### Slack Bot
-| Method | Endpoint         | Description                     |
-|--------|----------------|--------------------------------|
+
+| Method | Endpoint          | Description                     |
+| ------ | ----------------- | ------------------------------- |
 | `GET`  | `/slack/question` | Sends a random English question |
 | `POST` | `/slack/answer`   | Submits an answer to a question |
 
 ### Admin Panel
-| Method | Endpoint          | Description                         |
-|--------|------------------|-------------------------------------|
-| `GET`  | `/admin/questions` | Fetch all stored questions         |
-| `POST` | `/admin/question`  | Add a new English question         |
+
+| Method   | Endpoint              | Description                     |
+| -------- | --------------------- | ------------------------------- |
+| `GET`    | `/admin/questions`    | Fetch all stored questions      |
+| `POST`   | `/admin/question`     | Add a new English question      |
 | `DELETE` | `/admin/question/:id` | Remove a question from database |
 
 ---
 
 ## ✅ Contributing
+
 1. Fork the repository.
 2. Create a feature branch: `git checkout -b feature-name`
 3. Commit changes: `git commit -m "Add new feature"`
@@ -93,14 +103,15 @@ bun run dev
 ---
 
 ## 📜 License
+
 This project is licensed under the MIT License.
 
 ---
 
 ## 🔗 Contact
-- **Author**: Your Name
-- **Email**: your.email@example.com
-- **GitHub**: [your-github](https://github.com/your-github)
+
+- **Author**: Dang Do Quang Bao
+- **Email**: ddquangbao@gmail.com
+- **GitHub**: [quangpao](https://github.com/quangpao)
 
 🚀 Happy Learning! 🎉
-
