@@ -17,7 +17,7 @@ A **Slack bot** that helps team members improve their **English skills** by send
 ## 📂 Project Structure
 
 ```
-📦 english-slack-bot
+📦 engbuddy
 ├── 📂 src
 │   ├── 📂 api             # API handlers for Slack and Admin panel
 │   ├── 📂 controllers     # Business logic handlers
