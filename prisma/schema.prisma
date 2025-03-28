@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["typedSql"]
 }
 
 datasource db {
@@ -7,6 +8,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// --- Enums ---
 enum PermissionName {
   ANSWER_QUESTION
   MANAGE_QUESTIONS
@@ -17,20 +19,27 @@ enum PermissionName {
   VIEW_OWN_POINTS
 }
 
+enum QuestionType {
+  TEXT
+  CHOICE
+}
+
+
+// --- Core Auth/RBAC Models ---
 model Permission {
   id          Int              @id @default(autoincrement()) @map("id")
   name        PermissionName   @unique @map("name")
   description String?          @map("description")
-  roles       RolePermission[] 
+  roles       RolePermission[] // A permission can belong to multiple role-permission links
 
   @@map("permissions")
 }
 
 model Role {
   id          Int              @id @default(autoincrement()) @map("id")
-  name        String           @unique @map("name")
-  permissions RolePermission[]
-  users       UserRole[]
+  name        String           @unique @map("name")          // e.g., "Admin", "Student", "Teacher"
+  permissions RolePermission[] // A role has multiple permissions via RolePermission
+  users       User[]           // A role can be assigned to many users (inverse relation)
 
   @@map("roles")
 }
@@ -41,151 +50,146 @@ model RolePermission {
   permissionId Int        @map("permission_id")
   role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-  
-  @@unique([roleId, permissionId])
+
+  @@unique([roleId, permissionId]) // Ensure a role doesn't have the same permission twice
   @@map("role_permissions")
 }
 
 model User {
-  id            Int             @id @default(autoincrement()) @map("id")
-  slackId       String          @unique @map("slack_id")
-  name          String?         @map("name")
-  email         String?         @map("email")
-  createdAt     DateTime        @default(now()) @map("created_at")
-  roles         UserRole[]
-  responses     Response[]
-  questions     Question[]
-  points        Int             @default(0) @map("points")
-  monthlyPoints MonthlyPoints[]
+  id           Int      @id @default(autoincrement()) @map("id")
+  slackId      String   @unique @map("slack_id")      // Primary identifier from Slack
+  name         String?  @map("name")
+  email        String   @unique @map("email")         // Unique email for potential web login
+  passwordHash String?  @map("password_hash")       // Hashed password for web login (nullable if only Slack auth)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // --- Simplified Role Relationship ---
+  roleId Int  @map("role_id")                          // Foreign key linking to the user's single role
+  role   Role @relation(fields: [roleId], references: [id]) // Direct relation to the Role model
+
+  // --- Other User-Related Data ---
+  responses     Response[]                           // Responses submitted by the user
+  questions     Question[]      @relation("CreatedQuestions") // Questions created by the user
+  points        Int             @default(0) @map("points") // Total points accumulated
+  monthlyPoints MonthlyPoints[]                      // Points accumulated per month
 
   @@map("users")
 }
 
-model UserRole {
-  id      Int    @id @default(autoincrement()) @map("id")
-  userId  Int    @map("user_id")
-  roleId  Int    @map("role_id")
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role    Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  
-  @@unique([userId, roleId])
-  @@map("user_roles")
-}
 
+// --- Core Application Models ---
 model Channel {
-  id            Int            @id @default(autoincrement()) @map("id")
-  slackChannelId String        @unique @map("slack_channel_id")
-  name          String?        @map("name")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  schedules     Schedule[]
-  sentQuestions SentQuestion[]
+  id             Int            @id @default(autoincrement()) @map("id")
+  slackChannelId String         @unique @map("slack_channel_id") // Slack's unique channel ID
+  name           String?        @map("name")                     // Optional channel name cache
+  createdAt      DateTime       @default(now()) @map("created_at")
+  schedules      Schedule[]     // Schedules associated with this channel
+  sentQuestions  SentQuestion[] // History of questions sent to this channel
 
   @@map("channels")
 }
 
-enum QuestionType {
-  TEXT
-  CHOICE
-}
-
 model Question {
-  id            Int             @id @default(autoincrement()) @map("id")
-  text          String          @map("text")
-  type          QuestionType    @map("type")
-  correctAnswer String?         @map("correct_answer") // For TEXT type questions
-  choices       QuestionChoice[] 
-  createdBy     User            @relation(fields: [createdById], references: [id])
-  createdById   Int             @map("created_by_id")
-  createdAt     DateTime        @default(now()) @map("created_at")
-  sentInstances SentQuestion[]
+  id            Int              @id @default(autoincrement()) @map("id")
+  text          String           @map("text")                     // The question text itself
+  type          QuestionType     @map("type")                     // TEXT or CHOICE
+  correctAnswer String?          @map("correct_answer")         // Answer for TEXT questions
+  choices       QuestionChoice[]                                // Choices for CHOICE questions
+  createdById   Int              @map("created_by_id")          // ID of the user who created it
+  createdBy     User             @relation("CreatedQuestions", fields: [createdById], references: [id]) // Relation to the creator user
+  createdAt     DateTime         @default(now()) @map("created_at")
+  sentInstances SentQuestion[]                                 // Instances where this question was sent
 
   @@map("questions")
 }
 
 model QuestionChoice {
-  id         Int       @id @default(autoincrement()) @map("id")
-  questionId Int       @map("question_id")
-  text       String    @map("text")
-  isCorrect  Boolean   @map("is_correct")
-  question   Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  responses  Response[]
+  id         Int        @id @default(autoincrement()) @map("id")
+  questionId Int        @map("question_id")
+  text       String     @map("text")                // Text of the choice option
+  isCorrect  Boolean    @map("is_correct")         // True if this is the correct choice
+  question   Question   @relation(fields: [questionId], references: [id], onDelete: Cascade) // Relation back to the question
+  responses  Response[]                           // Responses selecting this choice
 
   @@map("question_choices")
 }
 
 model Schedule {
-  id          Int      @id @default(autoincrement()) @map("id")
-  channelId   Int      @map("channel_id")
-  channel     Channel  @relation(fields: [channelId], references: [id])
-  timeOfDay   String   @map("time_of_day") // Format: "10:00"
-  daysOfWeek  String[] @map("days_of_week") // Example: ["Monday", "Wednesday"]
-  questionIds Int[]    @map("question_ids") // Optional: specific questions to use
-  isActive    Boolean  @default(true) @map("is_active")
+  id             Int      @id @default(autoincrement()) @map("id")
+  channelId      Int      @map("channel_id")
+  channel        Channel  @relation(fields: [channelId], references: [id]) // Channel the schedule belongs to
+  // --- Scheduling Change ---
+  cronExpression String   @map("cron_expression")       // Standard CRON format string (e.g., "0 9 * * 1-5" for 9 AM Mon-Fri)
+  questionIds    Int[]    @map("question_ids")          // Optional: specific questions to use for this schedule
+  isActive       Boolean  @default(true) @map("is_active") // Whether the schedule is currently active
 
   @@map("schedules")
 }
 
 model SentQuestion {
-  id             Int       @id @default(autoincrement()) @map("id")
-  channelId      Int       @map("channel_id")
-  channel        Channel   @relation(fields: [channelId], references: [id])
-  questionId     Int       @map("question_id")
-  question       Question  @relation(fields: [questionId], references: [id])
-  slackMessageId String    @map("slack_message_id")
-  sentAt         DateTime  @default(now()) @map("sent_at")
-  closesAt       DateTime  @map("closes_at") // When to stop accepting answers
-  isClosed       Boolean   @default(false) @map("is_closed")
-  responses      Response[]
+  id             Int        @id @default(autoincrement()) @map("id")
+  channelId      Int        @map("channel_id")
+  channel        Channel    @relation(fields: [channelId], references: [id]) // Channel where it was sent
+  questionId     Int        @map("question_id")
+  question       Question   @relation(fields: [questionId], references: [id]) // The specific question sent
+  slackMessageId String     @map("slack_message_id")        // Slack's message ID for this sent question instance
+  sentAt         DateTime   @default(now()) @map("sent_at") // When the question was sent
+  closesAt       DateTime   @map("closes_at")              // When responses are no longer accepted
+  isClosed       Boolean    @default(false) @map("is_closed") // Status flag
+  responses      Response[]                                // Responses received for this instance
 
   @@map("sent_questions")
 }
 
 model Response {
-  id             Int            @id @default(autoincrement()) @map("id")
-  sentQuestionId Int            @map("sent_question_id")
-  sentQuestion   SentQuestion   @relation(fields: [sentQuestionId], references: [id])
-  userId         Int            @map("user_id")
-  user           User           @relation(fields: [userId], references: [id])
-  responseText   String?        @map("response_text") // For TEXT type questions
-  choiceId       Int?           @map("choice_id") // For CHOICE type questions
-  choice         QuestionChoice? @relation(fields: [choiceId], references: [id])
-  isCorrect      Boolean?       @map("is_correct")
-  respondedAt    DateTime       @default(now()) @map("responded_at")
-  pointsEarned   Int            @default(0) @map("points_earned")
+  id             Int             @id @default(autoincrement()) @map("id")
+  sentQuestionId Int             @map("sent_question_id")
+  sentQuestion   SentQuestion    @relation(fields: [sentQuestionId], references: [id]) // Link to the specific sent question instance
+  userId         Int             @map("user_id")
+  user           User            @relation(fields: [userId], references: [id]) // User who responded
+  responseText   String?         @map("response_text")         // User's answer for TEXT questions
+  choiceId       Int?            @map("choice_id")             // ID of the selected choice for CHOICE questions
+  choice         QuestionChoice? @relation(fields: [choiceId], references: [id]) // Relation to the selected choice
+  isCorrect      Boolean?        @map("is_correct")            // Was the response correct? (Set by backend logic)
+  respondedAt    DateTime        @default(now()) @map("responded_at") // When the response was submitted
+  pointsEarned   Int             @default(0) @map("points_earned") // Points awarded for this response
 
   @@map("responses")
 }
 
+
+// --- Supporting Models ---
 model MonthlyPoints {
-  id        Int      @id @default(autoincrement()) @map("id")
-  userId    Int      @map("user_id")
-  user      User     @relation(fields: [userId], references: [id])
-  year      Int      @map("year")
-  month     Int      @map("month")
-  points    Int      @default(0) @map("points")
-  
-  @@unique([userId, year, month])
+  id     Int  @id @default(autoincrement()) @map("id")
+  userId Int  @map("user_id")
+  user   User @relation(fields: [userId], references: [id])
+  year   Int  @map("year")                      // Year (e.g., 2024)
+  month  Int  @map("month")                     // Month (1-12)
+  points Int  @default(0) @map("points")       // Points accumulated in this specific month
+
+  @@unique([userId, year, month])             // Ensure only one record per user per month/year
   @@map("monthly_points")
 }
 
 model Setting {
-  id             Int      @id @default(autoincrement()) @map("id")
-  key            String   @unique @map("key")
-  value          String   @map("value")
-  description    String?  @map("description")
-  
+  id          Int     @id @default(autoincrement()) @map("id")
+  key         String  @unique @map("key")           // Name of the setting (e.g., "defaultPointsPerQuestion")
+  value       String  @map("value")                 // Value of the setting (store as string, parse in app)
+  description String? @map("description")         // Optional description of the setting
+
   @@map("settings")
 }
 
 model Ranking {
-  id             Int      @id @default(autoincrement()) @map("id")
-  year           Int      @map("year")
-  month          Int      @map("month")
-  userId         Int      @map("user_id")
-  rank           Int      @map("rank")
-  points         Int      @map("points")
-  generatedAt    DateTime @default(now()) @map("generated_at")
-  
-  @@unique([year, month, userId])
+  id          Int      @id @default(autoincrement()) @map("id")
+  year        Int      @map("year")
+  month       Int      @map("month")
+  userId      Int      @map("user_id")
+  // user User @relation(fields: [userId], references: [id]) // Optional: Add relation for easier user data access
+  rank        Int      @map("rank")                   // User's rank for the period
+  points      Int      @map("points")                 // User's points for the period
+  generatedAt DateTime @default(now()) @map("generated_at") // When this ranking entry was created/updated
+
+  @@unique([year, month, userId])                    // Unique ranking per user per period
   @@map("rankings")
 }
